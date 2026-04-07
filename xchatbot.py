@@ -9,7 +9,7 @@ import os
 # Using os.getenv for Railway security
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAFXyLmRGdPVWV6M-yqJZpA8mnhkXDv90us")
 GROK_API_KEY       = os.getenv("GROK_API_KEY", "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")
-GROK_MODEL         = "llama-4-scout-17b-16e-instruct" 
+GROK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" 
 # ─────────────────────────────────────────
 
 # Logging setup
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 bot    = telebot.TeleBot(TELEGRAM_BOT_TOKEN, parse_mode="Markdown")
 client = OpenAI(
     api_key  = GROK_API_KEY,
-    base_url = "https://api.groq.com/openai/v1",
+    base_url = "https://api.groq.com/openai/v1", 
 )
 
 conversation_history: dict[int, list[dict]] = {}
