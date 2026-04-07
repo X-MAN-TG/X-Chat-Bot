@@ -96,10 +96,12 @@ def handle_message(message: telebot.types.Message):
         # 🧠 Get the AI response
         reply = ask_grok(user_id, user_text)
         
+        # Security: If the AI returns nothing, trigger the "Attitude" error
         if not reply or len(reply) < 5:
             raise Exception("Incomplete AI response")
 
-        and professional
+        # 🎨 Advanced 'GPT-Style' Formatting
+        # We use a blockquote (>) to make the AI text look indented and professional
         formatted_ai_text = reply.replace('\n', '\n> ')
         
         full_reply = (
