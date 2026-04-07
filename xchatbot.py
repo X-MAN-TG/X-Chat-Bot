@@ -79,15 +79,14 @@ def handle_message(message: telebot.types.Message):
     user_id   = message.from_user.id
     user_text = message.text.strip()
 
-    # 1. ADD REACTIONS IMMEDIATELY
+    # 1. Cool Reactions (⚡/😎)
     try:
-        
         bot.set_message_reaction(message.chat.id, message.message_id, [
             types.ReactionTypeEmoji('⚡'), 
             types.ReactionTypeEmoji('😎')
         ])
-    except Exception as e:
-        logger.error(f"Could not react: {e}")
+    except Exception:
+        pass 
 
     # 2. Show Typing Indicator
     bot.send_chat_action(message.chat.id, "typing")
@@ -96,18 +95,14 @@ def handle_message(message: telebot.types.Message):
         # 🧠 Get the AI response
         reply = ask_grok(user_id, user_text)
         
-        # Security: If the AI returns nothing, trigger the "Attitude" error
         if not reply or len(reply) < 5:
             raise Exception("Incomplete AI response")
 
-        # 🎨 Advanced 'GPT-Style' Formatting
-        # We use a blockquote (>) to make the AI text look indented and professional
-        formatted_ai_text = reply.replace('\n', '\n> ')
-        
+        # 🎨 Advanced 'GPT-Style' Formatting (WITHOUT BLOCKQUOTES)
         full_reply = (
             f"✨ *X Chat Bot Response*\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"> {formatted_ai_text}\n\n" 
+            f"{reply}\n\n" # Removed the '>' symbols here
             f"━━━━━━━━━━━━━━━━━━━━━\n"
             f"💻 *Dev* — `Ayush (@CipherWrites)`"
         )
@@ -115,18 +110,18 @@ def handle_message(message: telebot.types.Message):
         bot.reply_to(message, full_reply, parse_mode="Markdown")
 
     except Exception as e:
-        logger.error(f"Logic Error for user {user_id}: {e}")
+        logger.error(f"Logic Error: {e}")
         
-        # 🙄 Sassy Error Message (Fallback)
+        # 🙄 Sassy Error Message
         attitude_text = (
             "🙄 *Ugh, even I have my limits.*\n\n"
             "I can't figure this one out right now. Stop spamming and "
-            "go ask my creator **Ayush Sir 😎** (@CipherWrites) directly. "
-            "He's the one with the real brain here.\n\n"
+            "go ask my creator **Ayush** (@CipherWrites) directly.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 *Dev* — Ayush (@CipherWrites)"
+            "💻 *Dev* — `Ayush (@CipherWrites)`"
         )
         bot.reply_to(message, attitude_text, parse_mode="Markdown")
+
         
 @bot.message_handler(commands=["start"])
 def cmd_start(message: telebot.types.Message):
