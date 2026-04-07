@@ -137,4 +137,9 @@ def handle_message(message: telebot.types.Message):
 
 if __name__ == "__main__":
     logger.info("🚀 X Chat Bot is starting...")
+    
+    # 🛡️ ADD THIS LINE: It clears old connections and stops the 409 error
+    bot.remove_webhook() 
+    
+    print("\n✅ X Chat Bot is LIVE! Check Telegram.\n")
     bot.infinity_polling(timeout=60, long_polling_timeout=30)
