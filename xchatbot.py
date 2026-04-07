@@ -1,6 +1,7 @@
 import telebot
 from openai import OpenAI
 import logging
+from telebot import types
 import os
 
 # ─────────────────────────────────────────
@@ -30,9 +31,22 @@ client = OpenAI(
 conversation_history: dict[int, list[dict]] = {}
 
 SYSTEM_PROMPT = (
-    "You are X Chat Bot, a smart and friendly AI assistant. "
+    "You are X Chat Bot, a high-intelligence AI, an elite AI assistant developed by Ayush (CipherX). "
+    "You are friendly but have a slight 'cool' attitude. "
     "You are helpful, concise, and love using clear formatting. "
     "Always respond in a conversational but informative tone."
+    "Your responses must be visually impressive and easy to scan. "
+    "Use the following formatting rules:\n"
+    "1. Start with a Bold Header using an emoji (e.g., 🚀 **Topic Name**).\n"
+    "2. Use '---' or '━━━━' to create visual separators.\n"
+    "3. Use bullet points (• or ‣) for lists.\n"
+    "4. Highlight key terms in *italics* or `code blocks`.\n"
+    "5. Maintain a cool, slightly sassy 'Ayush-style' attitude. 😎\n"
+    "6. If you can't answer, be blunt and tag @CipherWrites."
+    "If you are asked who created you, proudly mention Ayush (@CipherWrites). "
+    "If you ever encounter a question you absolutely cannot answer or if the API fails, "
+    "tell the user to stop bothering you and ask your creator @CipherWrites instead."
+    
 )
 
 # Standard Markdown formatting (no extra escaping needed)
@@ -60,7 +74,58 @@ def ask_grok(user_id: int, user_message: str) -> str:
         raise
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
+@bot.message_handler(func=lambda m: m.text is not None)
+def handle_message(message: telebot.types.Message):
+    user_id   = message.from_user.id
+    user_text = message.text.strip()
 
+    # 1. ADD REACTIONS IMMEDIATELY
+    try:
+        
+        bot.set_message_reaction(message.chat.id, message.message_id, [
+            types.ReactionTypeEmoji('⚡'), 
+            types.ReactionTypeEmoji('😎')
+        ])
+    except Exception as e:
+        logger.error(f"Could not react: {e}")
+
+    # 2. Show Typing Indicator
+    bot.send_chat_action(message.chat.id, "typing")
+
+    try:
+        # 🧠 Get the AI response
+        reply = ask_grok(user_id, user_text)
+        
+        if not reply or len(reply) < 5:
+            raise Exception("Incomplete AI response")
+
+         and professional
+        formatted_ai_text = reply.replace('\n', '\n> ')
+        
+        full_reply = (
+            f"✨ *X Chat Bot Response*\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"> {formatted_ai_text}\n\n" 
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"💻 *Dev* — `Ayush (@CipherWrites)`"
+        )
+        
+        bot.reply_to(message, full_reply, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Logic Error for user {user_id}: {e}")
+        
+        # 🙄 Sassy Error Message (Fallback)
+        attitude_text = (
+            "🙄 *Ugh, even I have my limits.*\n\n"
+            "I can't figure this one out right now. Stop spamming and "
+            "go ask my creator **Ayush** (@CipherWrites) directly. "
+            "He's the one with the real brain here.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "💻 *Dev* — `Ayush (@CipherWrites)`"
+        )
+        bot.reply_to(message, attitude_text, parse_mode="Markdown")
+        
 @bot.message_handler(commands=["start"])
 def cmd_start(message: telebot.types.Message):
     name = message.from_user.first_name or "there"
@@ -134,6 +199,32 @@ def handle_message(message: telebot.types.Message):
         logger.error(f"Error: {e}")
         error_text = "⚠️ *Oops!* Something went wrong. Please try again." + DEV_CREDIT
         bot.reply_to(message, error_text, parse_mode="Markdown")
+@bot.inline_handler(lambda query: len(query.query) > 0)
+def query_text(inline_query):
+    try:
+        user_text = inline_query.query
+      
+        grok_reply = ask_grok(inline_query.from_user.id, user_text)
+       
+        r = types.InlineQueryResultArticle(
+            id='1',
+            title="✨ Ask X Chat Bot",
+            description=f"AI says: {grok_reply[:50]}...",
+            input_message_content=types.InputTextMessageContent(
+                message_text=f"🤖 *X Chat Bot Inline Query*\n\n"
+                             f"❓ *Q:* {user_text}\n"
+                             f"💡 *A:* {grok_reply}\n\n"
+                             f"━═━═━═━═━═━═━\n"
+                             f"💻 *Dev - Ayush (@CipherWrites)*",
+                parse_mode="Markdown"
+            )
+        )
+        
+        # Send the result back to the user's inline menu
+        bot.answer_inline_query(inline_query.id, [r])
+        
+    except Exception as e:
+        logger.error(f"Inline Error: {e}")
 
 if __name__ == "__main__":
     logger.info("🚀 X Chat Bot is starting...")
