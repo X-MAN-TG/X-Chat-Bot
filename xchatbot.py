@@ -8,7 +8,7 @@ import os
 #   🔑  CONFIGURATION — Updated for Groq & Railway
 # ─────────────────────────────────────────
 # Using os.getenv for Railway security
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAFXyLmRGdPVWV6M-yqJZpA8mnhkXDv90us")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAHBlHCL71aqmhVm_k0XZ33thzkFIJkCLlU")
 GROK_API_KEY       = os.getenv("GROK_API_KEY", "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")
 GROK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" 
 # ─────────────────────────────────────────
@@ -124,7 +124,7 @@ def handle_message(message: telebot.types.Message):
             "go ask my creator **Ayush Sir 😎** (@CipherWrites) directly. "
             "He's the one with the real brain here.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 *Dev* — `Ayush (@CipherWrites)`"
+            "💻 *Dev* — Ayush (@CipherWrites)"
         )
         bot.reply_to(message, attitude_text, parse_mode="Markdown")
         
