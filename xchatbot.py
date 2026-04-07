@@ -50,7 +50,7 @@ SYSTEM_PROMPT = (
 )
 
 # Standard Markdown formatting (no extra escaping needed)
-DEV_CREDIT = "\n\n━━━━━━━━━━━━━━━\n💻 *Dev* — `Pyrexus`"
+DEV_CREDIT = "\n\n━━━━━━━━━━━━━━━\n💻 *Dev* — `@pyrexus`"
 
 MAX_HISTORY = 20
 
@@ -121,7 +121,7 @@ def handle_message(message: telebot.types.Message):
         attitude_text = (
             "🙄 *Ugh, even I have my limits.*\n\n"
             "I can't figure this one out right now. Stop spamming and "
-            "go ask my creator **Ayush** (@CipherWrites) directly. "
+            "go ask my creator **Ayush Sir 😎** (@CipherWrites) directly. "
             "He's the one with the real brain here.\n\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
             "💻 *Dev* — `Ayush (@CipherWrites)`"
@@ -135,7 +135,7 @@ def cmd_start(message: telebot.types.Message):
         f"🤖 *X Chat Bot*\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"Hey *{name}*! 👋 Welcome aboard!\n\n"
-        f"I'm powered by *Llama 4 Scout* via Groq 🚀\n"
+        f"I'm powered by *𝗫 𝗕𝗼𝘁𝘀 * developed and hosted by 𝐂𝐈𝐏𝐇𝐄𝐑𝐗.𝐚𝐞 🚀\n"
         f"Just send me any message and I'll do my best to help.\n\n"
         f"📌 *Quick Commands:*\n"
         f"`/start`  — Show this welcome message\n"
