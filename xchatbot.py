@@ -99,7 +99,7 @@ def handle_message(message: telebot.types.Message):
         if not reply or len(reply) < 5:
             raise Exception("Incomplete AI response")
 
-         and professional
+        and professional
         formatted_ai_text = reply.replace('\n', '\n> ')
         
         full_reply = (
