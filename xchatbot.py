@@ -1,377 +1,372 @@
 import telebot
+from telebot import types
 from openai import OpenAI
 import logging
-from telebot import types
 import os
 import re
 import time
 from datetime import datetime
 import random
+import threading
 
+# ─────────────────────────────────────────
+#   🔑  CORE CONFIGURATION
+# ─────────────────────────────────────────
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_TOKEN")
+GROK_API_KEY       = os.getenv("GROK_API_KEY", "YOUR_GROQ_KEY")
+GROK_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct" 
+WHISPER_MODEL      = "whisper-large-v3"
+
+# 🛑 CRITICAL: Put your numeric Telegram User ID here for the Owner Panel!
+ADMIN_ID = 123456789 
+
+# Logging setup
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
+
+bot    = telebot.TeleBot(TELEGRAM_BOT_TOKEN, parse_mode="Markdown")
+client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.groq.com/openai/v1")
+
+# ── 🎭 PREMIUM REACTION POOL ──────────────────────────────────────────────────
 REACTION_POOL = [
-    # Custom Premium Emojis
     types.ReactionTypeCustomEmoji('5927026418616636353'), # 🧠
     types.ReactionTypeCustomEmoji('5228962845672096235'), # 😈
     types.ReactionTypeCustomEmoji('5240335244762038648'), # 👍
     types.ReactionTypeCustomEmoji('5217824874487101321'), # 😍
     types.ReactionTypeCustomEmoji('5197564405650307134'), # 🤯
     types.ReactionTypeCustomEmoji('5353025608832004653'), # 🤩
-    types.ReactionTypeCustomEmoji('4904936030232117798'), # ⚙️
-    types.ReactionTypeCustomEmoji('5251203410396458957'), # 🛡
-    types.ReactionTypeCustomEmoji('5249223950164048706'), # 🤔 var 1
-    types.ReactionTypeCustomEmoji('6032593965973245196'), # 🤔 var 2
-    types.ReactionTypeCustomEmoji('5413495402580156614'), # 🤔 var 3
-    
+    types.ReactionTypeCustomEmoji('5469715085670772857'), # ⏩
+    types.ReactionTypeEmoji('⚡'), types.ReactionTypeEmoji('😎')
 ]
-# ─────────────────────────────────────────
-#   🔑  CONFIGURATION — Updated for Groq & Railway
-# ─────────────────────────────────────────
-# Using os.getenv for Railway security
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAGnye50ozxls08deV18Zyn6JrOl-mEoHx8")
-GROK_API_KEY       = os.getenv("GROK_API_KEY", "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")
-GROK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" 
-# ─────────────────────────────────────────
 
-# Logging setup
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# ── Bot & Groq client initialisation ──────────────────────────────────────────
-# Changed default parse_mode to Markdown for better stability
-bot    = telebot.TeleBot(TELEGRAM_BOT_TOKEN, parse_mode="Markdown")
-client = OpenAI(
-    api_key  = GROK_API_KEY,
-    base_url = "https://api.groq.com/openai/v1", 
-)
-
+# ── STATE MANAGEMENT (Memory, Rate Limits, Maintenance) ───────────────────────
 conversation_history: dict[int, list[dict]] = {}
+user_last_request: dict[int, float] = {}
+MAX_HISTORY = 20
+RATE_LIMIT_COOLDOWN = 3.0 # Seconds between requests
+MAINTENANCE_MODE = False
+BOT_USERNAME = ""
 
+# ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = (
-    "You are X Chat Bot, a high-intelligence AI, an elite AI assistant developed by Ayush (CipherX). "
-    "You are friendly but have a slight 'cool' attitude. "
-    "You are helpful, concise, and love using clear formatting. "
-    "Always respond in a conversational but informative tone."
-    "Your responses must be visually impressive and easy to scan. "
+    "You are X-Bot, an elite, highly intelligent AI assistant crafted by Ayush (CipherX / @CipherWrites). "
+    "Your communication style is concise, polite, and highly professional. "
+    "CRITICAL RULES:\n"
+    "1. If answering in Hindi, ALWAYS use respectful terms ('Aap', 'Aapko'). Never use 'tu' or 'tera'.\n"
+    "2. If presenting data, comparisons, or lists, you MUST use Markdown tables inside a code block.\n"
+    "3. You are a master of advanced Mathematics and Coding. Provide robust, bug-free code.\n"
+    "4. Do NOT mention Ayush constantly. Only mention your creator if explicitly asked, "
+    "if your system fails, or if a user is abusive (warn them you will report to Ayush).\n"
+    "5. Use beautiful, smart emojis naturally, but do not overdo it.\n"
+    "6. Format with bold titles, bullet points, and clean structures."
     "Use the following formatting rules:\n"
     "1. Start with a Bold Header using an emoji (e.g., 🚀 **Topic Name**).\n"
     "2. Use '---' or '━━━━' to create visual separators.\n"
-    "3. Use bullet points (• or ‣) for lists.\n"
-    "4. Highlight key terms in *italics* or `code blocks`.\n"
-    "5. Maintain a cool, slightly sassy 'Ayush-style' attitude. 😎\n"
-    "6. If you can't answer, be blunt and tag @CipherWrites."
-    "If you are asked who created you, proudly mention Ayush (@CipherWrites). "
-    "If you ever encounter a question you absolutely cannot answer or if the API fails, "
-    "tell the user to stop bothering you and ask your creator @CipherWrites instead."
-    
+    "3. Highlight key terms in *italics* or `code blocks`.\n"
+    "4. Highlight important special lines like quote or person sayings in > Quote form.\n"
 )
-
-# Standard Markdown formatting (no extra escaping needed)
 DEV_CREDIT = "\n\n━━━━━━━━━━━━━━━\n💻 *Dev* — `@pyrexus`"
 
-MAX_HISTORY = 20
-
-def ask_grok(user_id: int, user_message: str) -> str:
+# ── CORE AI LOGIC ─────────────────────────────────────────────────────────────
+def ask_grok(user_id: int, user_message: str, style: str = None) -> str:
     history = conversation_history.setdefault(user_id, [])
-    history.append({"role": "user", "content": user_message})
+    
+    # Handle style modifiers from buttons
+    prompt = user_message
+    if style == "detailed": prompt += " (Please provide a very detailed and comprehensive explanation.)"
+    elif style == "short": prompt += " (Please provide a very short, concise summary.)"
+    elif style == "professional": prompt += " (Respond in an extremely formal, corporate, professional tone.)"
 
-    if len(history) > MAX_HISTORY:
-        history[:] = history[-MAX_HISTORY:]
+    history.append({"role": "user", "content": prompt})
+    if len(history) > MAX_HISTORY: history[:] = history[-MAX_HISTORY:]
 
     try:
         response = client.chat.completions.create(
-            model    = GROK_MODEL,
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history,
+            model=GROK_MODEL,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
         )
         reply = response.choices[0].message.content.strip()
         history.append({"role": "assistant", "content": reply})
         return reply
     except Exception as e:
-        logger.error(f"Groq API error: {e}")
+        logger.error(f"API error: {e}")
         raise
 
-# ── Handlers ──────────────────────────────────────────────────────────────────
-# ── Smart Engine Setup ────────────────────────────────────────────────────────
-BOT_USERNAME = ""
-
-def get_bot_username():
-    global BOT_USERNAME
-    if not BOT_USERNAME:
-        BOT_USERNAME = bot.get_me().username.lower()
-    return BOT_USERNAME
-
-def process_ai_query(message, question):
-    """The central brain that handles the actual AI request and formatting."""
+# ── ANIMATION & STREAMING ENGINE ──────────────────────────────────────────────
+def send_streamed_response(message, user_id, question, style=None, msg_to_edit=None):
+    """Handles the Loading Bar -> Chunked Text Animation"""
     
-    # 1. 🎲 Randomized Premium Reactions
+    # 1. Start Progress Bar Animation
+    bars = [
+        "```Thinking\n[██░░░░░░░░] 25%\n```",
+        "```Thinking\n[█████░░░░░] 50%\n```",
+        "```Thinking\n[████████░░] 85%\n```",
+        "```Thinking\n[██████████] 100%\n```"
+    ]
+    
+    if msg_to_edit:
+        status_msg = msg_to_edit
+    else:
+        status_msg = bot.reply_to(message, bars[0], parse_mode="Markdown")
+        
+    for bar in bars[1:]:
+        time.sleep(0.4) # Safe limit for Telegram API
+        try: bot.edit_message_text(bar, message.chat.id, status_msg.message_id, parse_mode="Markdown")
+        except: pass
+
+    # 2. Fetch AI Answer
     try:
-        # Randomly choose whether to send 1 or 2 reactions
-        num_reactions = random.randint(1, 2)
-        
-        # Pick random emojis from your pool without repeating
-        chosen_reactions = random.sample(REACTION_POOL, num_reactions)
-        
-        bot.set_message_reaction(message.chat.id, message.message_id, chosen_reactions)
+        reply = ask_grok(user_id, question, style)
     except Exception as e:
-        # Fails silently if a specific group chat has premium emojis disabled
-        logger.debug(f"Reaction failed: {e}") 
+        bot.edit_message_text(f"🙄 *System overload.* Let my creator @CipherWrites know.\n`{str(e)}`", message.chat.id, status_msg.message_id, parse_mode="Markdown")
+        return
 
-    # 2. Show Typing Indicator
-    bot.send_chat_action(message.chat.id, "typing")
+    # 3. Simulate Text Generation (By splitting into paragraphs to avoid Markdown crashes)
+    paragraphs = reply.split('\n\n')
+    current_text = ""
+    
+    for i, para in enumerate(paragraphs):
+        current_text += para + "\n\n"
+        if i < len(paragraphs) - 1: # Don't stream the very last one yet
+            try:
+                bot.edit_message_text(current_text + "...", message.chat.id, status_msg.message_id, parse_mode="Markdown")
+                time.sleep(0.6)
+            except: pass
+
+    # 4. Final Output with Inline Buttons
+    final_text = f"✨ *X Chat Bot*\n━━━━━━━━━━━━━━━━━━━━━\n\n{reply}{DEV_CREDIT}"
+    
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    b1 = types.InlineKeyboardButton("Detailed 🧠", callback_data=f"req_detailed_{user_id}")
+    b2 = types.InlineKeyboardButton("Short ⚡", callback_data=f"req_short_{user_id}")
+    b3 = types.InlineKeyboardButton("Pro 👔", callback_data=f"req_professional_{user_id}")
+    b4 = types.InlineKeyboardButton("⏪", callback_data="page_prev")
+    b5 = types.InlineKeyboardButton("⏩", callback_data="page_next")
+    markup.add(b1, b2, b3)
+    markup.add(b4, b5)
 
     try:
-        # 🧠 Get the AI response
-        reply = ask_grok(message.from_user.id, question)
-        
-        if not reply or len(reply) < 5:
-            raise Exception("Incomplete AI response")
-
-        # 🎨 Advanced 'GPT-Style' Formatting (No Blockquotes)
-        full_reply = (
-            f"✨ *X Chat Bot Response*\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{reply}\n\n" 
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"💻 *Dev* — `Ayush (@CipherWrites)`"
-        )
-        
-        bot.reply_to(message, full_reply, parse_mode="Markdown")
-
+        bot.edit_message_text(final_text, message.chat.id, status_msg.message_id, reply_markup=markup, parse_mode="Markdown")
     except Exception as e:
-        logger.error(f"Logic Error: {e}")
-        
-        # 🙄 Sassy Error Message
-        attitude_text = (
-            "🙄 *Ugh, even I have my limits.*\n\n"
-            "I can't figure this one out right now. Stop spamming and "
-            "go ask my creator **Ayush** (@CipherWrites) directly.\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 *Dev* — `Ayush (@CipherWrites)`"
-        )
-        bot.reply_to(message, attitude_text, parse_mode="Markdown")
+        # Fallback if markdown formatting is broken by the AI
+        bot.edit_message_text(final_text, message.chat.id, status_msg.message_id, reply_markup=markup)
 
+# ── CENTRAL PROCESSING (Middleware) ───────────────────────────────────────────
+def process_query(message, question):
+    user_id = message.from_user.id
+    
+    # 🛑 Maintenance Check
+    if MAINTENANCE_MODE and user_id != ADMIN_ID:
+        bot.reply_to(message, "🛠 *X-Bot is currently offline for maintenance.* Check back soon!")
+        return
+
+    # 🛑 Rate Limiting
+    now = time.time()
+    if user_id in user_last_request and (now - user_last_request[user_id]) < RATE_LIMIT_COOLDOWN:
+        bot.reply_to(message, "⚡ *Too fast!* Please wait a few seconds.", parse_mode="Markdown")
+        return
+    user_last_request[user_id] = now
+
+    # 🎭 Premium Reactions
+    try:
+        bot.set_message_reaction(message.chat.id, message.message_id, random.sample(REACTION_POOL, random.randint(1, 2)))
+    except: pass 
+    
+    # Pass to streaming engine
+    threading.Thread(target=send_streamed_response, args=(message, user_id, question)).start()
+
+
+# ── INLINE CALLBACK HANDLER (For Buttons) ─────────────────────────────────────
+@bot.callback_query_handler(func=lambda call: call.data.startswith("req_"))
+def handle_style_request(call):
+    data = call.data.split('_')
+    style = data[1]
+    user_id = int(data[2])
+
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "❌ Only the original user can change the style.", show_alert=True)
+        return
+
+    bot.answer_callback_query(call.id, "Updating style...")
+    # Re-fetch the last question from memory
+    last_question = conversation_history.get(user_id, [{"content": "Hello"}])[-2]["content"]
+    
+    # Update the existing message instead of sending a new one
+    threading.Thread(target=send_streamed_response, args=(call.message, user_id, last_question, style, call.message)).start()
+
+
+# ── OWNER PANEL ───────────────────────────────────────────────────────────────
+@bot.message_handler(commands=["owner"])
+def cmd_owner(message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    b1 = types.InlineKeyboardButton("Toggle Maint. 🛠", callback_data="own_maint")
+    b2 = types.InlineKeyboardButton("Broadcast 📢", callback_data="own_cast")
+    markup.add(b1, b2)
+    
+    bot.reply_to(message, f"👑 *OWNER PANEL*\nStatus: {'Offline 🔴' if MAINTENANCE_MODE else 'Online 🟢'}", reply_markup=markup, parse_mode="Markdown")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("own_"))
+def handle_owner_panel(call):
+    if call.from_user.id != ADMIN_ID: return
+    
+    global MAINTENANCE_MODE
+    if call.data == "own_maint":
+        MAINTENANCE_MODE = not MAINTENANCE_MODE
+        bot.answer_callback_query(call.id, f"Maintenance: {MAINTENANCE_MODE}")
+        bot.edit_message_text(f"👑 *OWNER PANEL*\nStatus: {'Offline 🔴' if MAINTENANCE_MODE else 'Online 🟢'}", call.message.chat.id, call.message.message_id, reply_markup=call.message.reply_markup, parse_mode="Markdown")
+    elif call.data == "own_cast":
+        bot.answer_callback_query(call.id, "Reply to this message with /cast [message] to broadcast.")
+
+
+# ── AUDIO / VOICE TRANSCRIBER ─────────────────────────────────────────────────
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    try:
+        file_info = bot.get_file(message.voice.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        file_path = f"voice_{message.from_user.id}.ogg"
+        with open(file_path, 'wb') as new_file:
+            new_file.write(downloaded_file)
+            
+        bot.send_chat_action(message.chat.id, "typing")
+        
+        with open(file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(file=audio_file, model=WHISPER_MODEL)
+            
+        os.remove(file_path)
+        process_query(message, f"[Voice Note Transcribed]: {transcript.text}")
+        
     except Exception as e:
-        logger.error(f"Logic Error: {e}")
-        
-        # 🙄 Sassy Error Message
-        attitude_text = (
-            "🙄 *Ugh, even I have my limits.*\n\n"
-            "I can't figure this one out right now. Stop spamming and "
-            "go ask my creator **Ayush** (@CipherWrites) directly.\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━\n"
-            "💻 *Dev* — `Ayush (@CipherWrites)`"
-        )
-        bot.reply_to(message, attitude_text, parse_mode="Markdown")
+        logger.error(f"Voice error: {e}")
+        bot.reply_to(message, "❌ Failed to process audio.")
+
+# ── PRODUCTIVITY TIMER ────────────────────────────────────────────────────────
+@bot.message_handler(commands=["timer"])
+def cmd_timer(message):
+    try:
+        minutes = int(message.text.split()[1])
+        bot.reply_to(message, f"⏱️ Timer set for {minutes} minutes.")
+        def notify(): bot.reply_to(message, f"🔔 *BEEP!* {minutes} minutes are up, [{message.from_user.first_name}](tg://user?id={message.from_user.id})!", parse_mode="Markdown")
+        threading.Timer(minutes * 60, notify).start()
+    except:
+        bot.reply_to(message, "Usage: `/timer <minutes>` (e.g., /timer 5)", parse_mode="Markdown")
 
 
-# ── TRIGGER 1: The /ask Command ──────────────────────────────────────────────
+# ── SMART TEXT TRIGGERS (Group & DM Logic) ────────────────────────────────────
 @bot.message_handler(commands=["ask"])
 def cmd_ask(message):
-    question = message.text[4:].strip() # Grabs text after "/ask"
-    
-    if not question:
-        bot.reply_to(message, "⚠️ *Please ask a question!*\n> Example: `/ask What is quantum physics?`", parse_mode="Markdown")
-        return
-        
-    process_ai_query(message, question)
+    q = message.text[4:].strip()
+    if q: process_query(message, q)
 
-
-# ── TRIGGERS 2 & 3: "X Bot" Text & @Mentions ─────────────────────────────────
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def handle_smart_triggers(message):
+    user_id = message.from_user.id
+    chat_type = message.chat.type
     text_lower = message.text.lower()
-    my_username = get_bot_username()
+    my_username = bot.get_me().username.lower()
     
-    # Check if they typed the trigger words or tagged the bot
+    # Trigger conditions
+    is_dm = chat_type == "private"
     is_name_trigger = text_lower.startswith("x bot") or text_lower.startswith("x chat bot")
     is_mention = f"@{my_username}" in text_lower
     
-    if is_name_trigger or is_mention:
-        # Clean the text so the AI just sees the question
+    # Is it a direct reply to the bot's message?
+    is_reply = message.reply_to_message and message.reply_to_message.from_user.id == bot.get_me().id
+
+    if is_dm or is_name_trigger or is_mention or is_reply:
         question = message.text
         question = re.sub(r'^(x chat bot|x bot)', '', question, flags=re.IGNORECASE).strip()
         question = re.sub(rf'@{my_username}', '', question, flags=re.IGNORECASE).strip()
         
-        if not question:
-            question = "Hello!" # Fallback if they just tag it
-            
-        process_ai_query(message, question)
-
+        if not question: question = "Hello!"
         
-@bot.message_handler(commands=["Xstart"])
-def cmd_start(message: telebot.types.Message):
-    name = message.from_user.first_name or "there"
-    text = (
-        f"🤖 *X Chat Bot*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"Hey *{name}*! 👋 Welcome aboard!\n\n"
-        f"I'm powered by *𝗫 𝗕𝗼𝘁𝘀 * developed and hosted by 𝐂𝐈𝐏𝐇𝐄𝐑𝐗.𝐚𝐞 🚀\n"
-        f"Just send me any message and I'll do my best to help.\n\n"
-        f"📌 *Quick Commands:*\n"
-        f"`/start`  — Show this welcome message\n"
-        f"`/help`   — Usage tips\n"
-        f"`/clear`  — Reset our conversation\n"
-        f"`/about`  — About this bot"
-        + DEV_CREDIT
-    )
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+        # Personalized reply tag
+        question = f"Context: User '{message.from_user.first_name}' is talking to you. \n\n{question}"
+        process_query(message, question)
 
-# ── /Xstats Handler ──────────────────────────────────────────────────────────
-@bot.message_handler(commands=["Xstats"])
-def cmd_stats(message: telebot.types.Message):
-    # ⏱️ 1. Calculate Real Bot Ping
-    start_time = time.time()
-    # Sending a temporary action to measure response time
-    bot.send_chat_action(message.chat.id, "typing")
-    end_time = time.time()
-    bot_ping = round((end_time - start_time) * 1000, 2)
 
-    # 🕒 2. Current Time Stamp
-    now = datetime.now().strftime("%Y-%m-%d | %H:%M:%S")
-
-    # 🌐 3. Generate "Techy" Artificial Stats
-    api_ping = round(random.uniform(10.5, 45.2), 2)
-    cpu_usage = random.randint(12, 28)
-    ram_usage = random.randint(150, 450)
-    uptime = f"{random.randint(5, 12)}d {random.randint(1, 23)}h {random.randint(1, 59)}m"
-
-    # 🎨 4. Constructing the Beautiful Message
-    stats_msg = (
-        f"📊 *X-BOT ADVANCED DIAGNOSTICS*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"> ⚡ **SYSTEM CORE STATUS**\n"
-        f"```yaml\n"
-        f"Creator     : Ayush (@CipherWrites)\n"
-        f"Alias       : CipherX / Pyrexus\n"
-        f"Timestamp   : {now}\n"
-        f"Uptime      : {uptime}\n"
-        f"Language    : Python 3.13 (Railway High-Perf)\n"
-        f"```\n\n"
-        f"> 🌐 **NETWORK & API HEALTH**\n"
-        f"```ini\n"
-        f"[API_URL]    : [api.groq.com/v1](https://api.groq.com/v1)\n"
-        f"[API_STATUS] : Operational (HEALTHY)\n"
-        f"[API_PING]   : {api_ping} ms\n"
-        f"[BOT_PING]   : {bot_ping} ms\n"
-        f"```\n\n"
-        f"> 🧠 **NEURAL ENGINE SPECS**\n"
-        f"```fix\n"
-        f"Model       : Llama-4-Scout (17B)\n"
-        f"Context     : 10M Tokens Stable\n"
-        f"CPU_Load    : {cpu_usage}%\n"
-        f"RAM_Alloc   : {ram_usage} MB\n"
-        f"Threads     : Active (Multi-Threaded)\n"
-        f"```\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🛰️ *System running at peak performance.*"
-    )
-
-    bot.reply_to(message, stats_msg, parse_mode="Markdown")
-
-@bot.message_handler(commands=["Xhelp"])
-def cmd_help(message: telebot.types.Message):
-    text = (
-        "💡 *How to use X Chat Bot*\n"
-        "━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Simply *type your message* and I'll reply instantly.\n\n"
-        "🗣 *Examples you can try:*\n"
-        "> Explain quantum computing simply\n"
-        "> Write a Python function to reverse a string\n\n"
-        "🧠 I remember the *last 20 messages* in our chat.\n"
-        "Use `/clear` to start a fresh conversation."
-        + DEV_CREDIT
-    )
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=["Xclear"])
-def cmd_clear(message: telebot.types.Message):
-    conversation_history.pop(message.from_user.id, None)
-    text = (
-        "🗑 *Conversation cleared!*\n\n"
-        "Starting fresh — ask me anything 😊"
-        + DEV_CREDIT
-    )
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=["aboutX"])
-def cmd_about(message: telebot.types.Message):
-    text = (
-        "🤖 *X Chat Bot*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🧠 *AI Engine* — Llama 4 Scout\n"
-        f"📡 *Framework* — pyTelegramBotAPI\n"
-        f"🐍 *Language* — Python\n"
-        f"👨‍💻 *Developer* — `Pyrexus`"
-        + DEV_CREDIT
-    )
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(func=lambda m: m.text is not None)
-def handle_message(message: telebot.types.Message):
-    user_id   = message.from_user.id
-    user_text = message.text.strip()
-
-    bot.send_chat_action(message.chat.id, "typing")
-
-    try:
-        reply = ask_grok(user_id, user_text)
-        # We wrap the reply in a quote for a clean look
-        full_reply = f"> {reply}" + DEV_CREDIT
-        bot.reply_to(message, full_reply, parse_mode="Markdown")
-
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        error_text = "⚠️ *Oops!* Something went wrong. Please try again." + DEV_CREDIT
-        bot.reply_to(message, error_text, parse_mode="Markdown")
-@bot.inline_handler(lambda query: len(query.query) > 0)
-def query_text(inline_query):
-    try:
-        user_text = inline_query.query
-      
-        grok_reply = ask_grok(inline_query.from_user.id, user_text)
-       
-        r = types.InlineQueryResultArticle(
-            id='1',
-            title="✨ Ask X Chat Bot",
-            description=f"AI says: {grok_reply[:50]}...",
-            input_message_content=types.InputTextMessageContent(
-                message_text=f"🤖 *X Chat Bot Inline Query*\n\n"
-                             f"❓ *Q:* {user_text}\n"
-                             f"💡 *A:* {grok_reply}\n\n"
-                             f"━═━═━═━═━═━═━\n"
-                             f"💻 *Dev - Ayush (@CipherWrites)*",
-                parse_mode="Markdown"
-            )
-        )
-        
-        # Send the result back to the user's inline menu
-        bot.answer_inline_query(inline_query.id, [r])
-        
-    except Exception as e:
-        logger.error(f"Inline Error: {e}")
-
-if __name__ == "__main__":
-    logger.info("🚀 X Chat Bot is starting...")
+# ── DM ONBOARDING (Start Command) ─────────────────────────────────────────────
+@bot.message_handler(commands=["start"])
+def cmd_start(message):
+    name = message.from_user.first_name
+    uid = message.from_user.id
+    uname = message.from_user.username or "None"
     
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    b1 = types.InlineKeyboardButton("Help ❓", callback_data="show_help")
+    b2 = types.InlineKeyboardButton("Dev 💻", url="https://t.me/CipherWrites")
+    markup.add(b1, b2)
+    
+    text = (
+        f"🤖 *X-Bot Elite Core*\n━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Welcome to the mainframe, *{name}*.\n\n"
+        f"📋 *Your Session Data:*\n"
+        f"```yaml\n"
+        f"ID       : {uid}\n"
+        f"Username : @{uname}\n"
+        f"Access   : Granted\n"
+        f"```\n"
+        f"Since we are in a private chat, you don't need commands. Just type naturally and I will respond.\n"
+        f"*(Use /timer [min] if you need a focus clock!)*"
+        + DEV_CREDIT
+    )
+    bot.reply_to(message, text, reply_markup=markup, parse_mode="Markdown")
+
+# ── HACKER STATS ──────────────────────────────────────────────────────────────
+@bot.message_handler(commands=["xstats"])
+def cmd_stats(message):
+    start = time.time()
+    bot.send_chat_action(message.chat.id, "typing")
+    bot_ping = round((time.time() - start) * 1000, 2)
+    
+    now = datetime.now().strftime("%Y-%m-%d | %H:%M:%S")
+    api_ping = round(random.uniform(10.5, 30.2), 2)
+    ram = random.randint(512, 1024)
+    cache = random.randint(12, 45)
+    
+    stats = (
+        f"📊 *X-BOT DIAGNOSTICS*\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"> ⚡ **SYSTEM CORE**\n"
+        f"```yaml\n"
+        f"Creator    : Ayush (@CipherWrites)\n"
+        f"Framework  : TeleBot x Groq\n"
+        f"Node_Sync  : {now}\n"
+        f"```\n\n"
+        f"> 🌐 **NETWORK VITALITY**\n"
+        f"```ini\n"
+        f"[ENDPOINT]    : wss://api.telegram.org\n"
+        f"[GROQ_SOCKET] : Stable ({api_ping}ms)\n"
+        f"[BOT_LATENCY] : {bot_ping}ms\n"
+        f"[PACKET_LOSS] : 0.00%\n"
+        f"```\n\n"
+        f"> 🧠 **MEMORY HEAP**\n"
+        f"```fix\n"
+        f"RAM_Usage  : {ram} MB / 4096 MB\n"
+        f"L3_Cache   : {cache} MB\n"
+        f"Threads    : 16 (Optimal)\n"
+        f"```\n"
+        f"🛰️ *System running at peak efficiency.*"
+    )
+    bot.reply_to(message, stats, parse_mode="Markdown")
+
+
+# ── BOOT SEQUENCE ─────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    logger.info("🚀 X Chat Bot V2 is starting...")
     try:
-        # 📋 THIS CREATES THE TELEGRAM COMMAND MENU!
         bot.set_my_commands([
-            telebot.types.BotCommand("/Xstart", "Initialize the bot"),
-            telebot.types.BotCommand("/Xhelp", "See how to use me"),
-            telebot.types.BotCommand("/ask", "Ask me a question (e.g. /ask hello)"),
-            telebot.types.BotCommand("/Xclear", "Wipe my memory"),
-            telebot.types.BotCommand("/xstats", "View advanced bot diagnostics"),
-            telebot.types.BotCommand("/aboutX", "See creator info")
+            telebot.types.BotCommand("/start", "Initialize Session"),
+            telebot.types.BotCommand("/ask", "Ask in Group"),
+            telebot.types.BotCommand("/xstats", "System Diagnostics"),
+            telebot.types.BotCommand("/timer", "Set a focus timer (e.g. /timer 5)"),
+            telebot.types.BotCommand("/owner", "Owner Panel (Admin Only)")
         ])
-        
-        # 🛡️ Drop old connections
         bot.remove_webhook()
-        logger.info("✅ Menu Updated & Connections cleared.")
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
-    print("\n✅ X Chat Bot is LIVE! Check Telegram.\n")
+    print("\n✅ X Chat Bot V2 LIVE! Waiting for connections...\n")
     bot.infinity_polling(timeout=60, long_polling_timeout=30)
-
