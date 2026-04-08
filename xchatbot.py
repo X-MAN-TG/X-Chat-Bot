@@ -63,7 +63,7 @@ SYSTEM_PROMPT = (
     "1. Start with a Bold Header using an emoji (e.g., 🚀 **Topic Name**).\n"
     "2. Use '---' or '━━━━' to create visual separators.\n"
     "3. Highlight key terms in *italics* or `code blocks`.\n"
-    "4. Highlight important special lines like quote or person sayings in > Quote form.\n"
+    "4. Highlight important special lines like quote or person sayings in > Quote form ( remember there is a space between > and text its like > quote).\n"
 )
 DEV_CREDIT = "\n\n━━━━━━━━━━━━━━━\n💻 *Dev* — `@pyrexus`"
 
@@ -94,13 +94,11 @@ def ask_grok(user_id: int, user_message: str, style: str = None) -> str:
 
 # ── ANIMATION & STREAMING ENGINE ──────────────────────────────────────────────
 def send_streamed_response(message, user_id, question, style=None, msg_to_edit=None):
-    """Handles the Loading Bar -> Chunked Text Animation"""
+    """Handles the Loading Bar -> Chunked Text Animation with Error Recovery"""
     
-    # 1. Start Progress Bar Animation
     bars = [
         "```Thinking\n[██░░░░░░░░] 25%\n```",
         "```Thinking\n[█████░░░░░] 50%\n```",
-        "```Thinking\n[████████░░] 85%\n```",
         "```Thinking\n[██████████] 100%\n```"
     ]
     
@@ -110,47 +108,61 @@ def send_streamed_response(message, user_id, question, style=None, msg_to_edit=N
         status_msg = bot.reply_to(message, bars[0], parse_mode="Markdown")
         
     for bar in bars[1:]:
-        time.sleep(0.4) # Safe limit for Telegram API
+        time.sleep(0.3)
         try: bot.edit_message_text(bar, message.chat.id, status_msg.message_id, parse_mode="Markdown")
         except: pass
 
-    # 2. Fetch AI Answer
     try:
         reply = ask_grok(user_id, question, style)
     except Exception as e:
-        bot.edit_message_text(f"🙄 *System overload.* Let my creator @CipherWrites know.\n`{str(e)}`", message.chat.id, status_msg.message_id, parse_mode="Markdown")
+        bot.edit_message_text(f"🙄 *System overload.* Ask @CipherWrites.\n`{str(e)}`", message.chat.id, status_msg.message_id, parse_mode="Markdown")
         return
 
-    # 3. Simulate Text Generation (By splitting into paragraphs to avoid Markdown crashes)
-    paragraphs = reply.split('\n\n')
-    current_text = ""
+    # 🎨 Prepare Final Content with Proper Quote Formatting
+    # We add '> ' to the start of the first line to trigger the Telegram Quote style
+    # and ensure there is a space after the symbol.
     
-    for i, para in enumerate(paragraphs):
-        current_text += para + "\n\n"
-        if i < len(paragraphs) - 1: # Don't stream the very last one yet
-            try:
-                bot.edit_message_text(current_text + "...", message.chat.id, status_msg.message_id, parse_mode="Markdown")
-                time.sleep(0.6)
-            except: pass
+    formatted_reply = f"> {reply.replace('\n', '\n> ')}"
 
-    # 4. Final Output with Inline Buttons
-    final_text = f"✨ *X Chat Bot*\n━━━━━━━━━━━━━━━━━━━━━\n\n{reply}{DEV_CREDIT}"
+    final_text = (
+        f"✨ *X Chat Bot Response*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{formatted_reply}\n\n" 
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💻 *Dev* — `Ayush (@CipherWrites)`"
+    )
     
+    # 🔘 Build Markup
     markup = types.InlineKeyboardMarkup(row_width=3)
-    b1 = types.InlineKeyboardButton("Detailed 🧠", callback_data=f"req_detailed_{user_id}")
-    b2 = types.InlineKeyboardButton("Short ⚡", callback_data=f"req_short_{user_id}")
-    b3 = types.InlineKeyboardButton("Pro 👔", callback_data=f"req_professional_{user_id}")
-    b4 = types.InlineKeyboardButton("⏪", callback_data="page_prev")
-    b5 = types.InlineKeyboardButton("⏩", callback_data="page_next")
-    markup.add(b1, b2, b3)
-    markup.add(b4, b5)
+    markup.add(
+        types.InlineKeyboardButton("Detailed 🧠", callback_data=f"req_detailed_{user_id}"),
+        types.InlineKeyboardButton("Short ⚡", callback_data=f"req_short_{user_id}"),
+        types.InlineKeyboardButton("Pro 👔", callback_data=f"req_professional_{user_id}")
+    ) 
+    # Row 2: Premium Navigation Buttons
+    # ⏪ ID: 5469982030773120950 | ⏩ ID: 5469715085670772857
+    b_prev = types.InlineKeyboardButton("⏪", callback_data="page_prev")
+    b_next = types.InlineKeyboardButton("⏩", callback_data="page_next")
+    markup.add(b_prev, b_next)
 
+    # 🛡️ THE FIX: Try Markdown, fallback to Plain Text if it fails
     try:
-        bot.edit_message_text(final_text, message.chat.id, status_msg.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text(
+            text=final_text, 
+            chat_id=message.chat.id, 
+            message_id=status_msg.message_id, 
+            reply_markup=markup, 
+            parse_mode="Markdown" # Use "Markdown" for the > Quote support
+        )
     except Exception as e:
-        # Fallback if markdown formatting is broken by the AI
-        bot.edit_message_text(final_text, message.chat.id, status_msg.message_id, reply_markup=markup)
-
+        logger.warning(f"Markdown Quote failed: {e}")
+        # If the quote syntax crashes, we send the raw reply
+        bot.edit_message_text(
+            text=f"✨ Response (Plain Text)\n\n{reply}\n\nDev: @CipherWrites", 
+            chat_id=message.chat.id, 
+            message_id=status_msg.message_id, 
+            reply_markup=markup
+        )
 # ── CENTRAL PROCESSING (Middleware) ───────────────────────────────────────────
 def process_query(message, question):
     user_id = message.from_user.id
