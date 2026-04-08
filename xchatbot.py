@@ -27,7 +27,7 @@ REACTION_POOL = [
 #   🔑  CONFIGURATION — Updated for Groq & Railway
 # ─────────────────────────────────────────
 # Using os.getenv for Railway security
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAHleP3Vd3sTqxMdMSwCZe-y_np-8-q6P7s")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAGnye50ozxls08deV18Zyn6JrOl-mEoHx8")
 GROK_API_KEY       = os.getenv("GROK_API_KEY", "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")
 GROK_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" 
 # ─────────────────────────────────────────
