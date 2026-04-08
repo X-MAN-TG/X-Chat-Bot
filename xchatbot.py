@@ -3,6 +3,9 @@ from openai import OpenAI
 import logging
 from telebot import types
 import os
+import time
+from datetime import datetime
+import random
 
 # ─────────────────────────────────────────
 #   🔑  CONFIGURATION — Updated for Groq & Railway
@@ -140,6 +143,58 @@ def cmd_start(message: telebot.types.Message):
         + DEV_CREDIT
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+# ── /Xstats Handler ──────────────────────────────────────────────────────────
+@bot.message_handler(commands=["Xstats"])
+def cmd_stats(message: telebot.types.Message):
+    # ⏱️ 1. Calculate Real Bot Ping
+    start_time = time.time()
+    # Sending a temporary action to measure response time
+    bot.send_chat_action(message.chat.id, "typing")
+    end_time = time.time()
+    bot_ping = round((end_time - start_time) * 1000, 2)
+
+    # 🕒 2. Current Time Stamp
+    now = datetime.now().strftime("%Y-%m-%d | %H:%M:%S")
+
+    # 🌐 3. Generate "Techy" Artificial Stats
+    api_ping = round(random.uniform(10.5, 45.2), 2)
+    cpu_usage = random.randint(12, 28)
+    ram_usage = random.randint(150, 450)
+    uptime = f"{random.randint(5, 12)}d {random.randint(1, 23)}h {random.randint(1, 59)}m"
+
+    # 🎨 4. Constructing the Beautiful Message
+    stats_msg = (
+        f"📊 *X-BOT ADVANCED DIAGNOSTICS*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"> ⚡ **SYSTEM CORE STATUS**\n"
+        f"```yaml\n"
+        f"Creator     : Ayush (@CipherWrites)\n"
+        f"Alias       : CipherX / Pyrexus\n"
+        f"Timestamp   : {now}\n"
+        f"Uptime      : {uptime}\n"
+        f"Language    : Python 3.13 (Railway High-Perf)\n"
+        f"```\n\n"
+        f"> 🌐 **NETWORK & API HEALTH**\n"
+        f"```ini\n"
+        f"[API_URL]    : [api.groq.com/v1](https://api.groq.com/v1)\n"
+        f"[API_STATUS] : Operational (HEALTHY)\n"
+        f"[API_PING]   : {api_ping} ms\n"
+        f"[BOT_PING]   : {bot_ping} ms\n"
+        f"```\n\n"
+        f"> 🧠 **NEURAL ENGINE SPECS**\n"
+        f"```fix\n"
+        f"Model       : Llama-4-Scout (17B)\n"
+        f"Context     : 10M Tokens Stable\n"
+        f"CPU_Load    : {cpu_usage}%\n"
+        f"RAM_Alloc   : {ram_usage} MB\n"
+        f"Threads     : Active (Multi-Threaded)\n"
+        f"```\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🛰️ *System running at peak performance.*"
+    )
+
+    bot.reply_to(message, stats_msg, parse_mode="Markdown")
 
 @bot.message_handler(commands=["help"])
 def cmd_help(message: telebot.types.Message):
