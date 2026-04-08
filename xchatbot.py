@@ -12,13 +12,13 @@ import threading
 # ─────────────────────────────────────────
 #   🔑  CORE CONFIGURATION
 # ─────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_TOKEN")
-GROK_API_KEY       = os.getenv("GROK_API_KEY", "YOUR_GROQ_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAGnye50ozxls08deV18Zyn6JrOl-mEoHx8")
+GROK_API_KEY       = os.getenv("GROK_API_KEY", "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")
 GROK_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct" 
 WHISPER_MODEL      = "whisper-large-v3"
 
 # 🛑 CRITICAL: Put your numeric Telegram User ID here for the Owner Panel!
-ADMIN_ID = 123456789 
+ADMIN_ID = 6810553459 
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
