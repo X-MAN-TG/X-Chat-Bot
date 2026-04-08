@@ -8,6 +8,21 @@ import time
 from datetime import datetime
 import random
 
+REACTION_POOL = [
+    # Custom Premium Emojis
+    types.ReactionTypeCustomEmoji('5927026418616636353'), # 🧠
+    types.ReactionTypeCustomEmoji('5228962845672096235'), # 😈
+    types.ReactionTypeCustomEmoji('5240335244762038648'), # 👍
+    types.ReactionTypeCustomEmoji('5217824874487101321'), # 😍
+    types.ReactionTypeCustomEmoji('5197564405650307134'), # 🤯
+    types.ReactionTypeCustomEmoji('5353025608832004653'), # 🤩
+    types.ReactionTypeCustomEmoji('4904936030232117798'), # ⚙️
+    types.ReactionTypeCustomEmoji('5251203410396458957'), # 🛡
+    types.ReactionTypeCustomEmoji('5249223950164048706'), # 🤔 var 1
+    types.ReactionTypeCustomEmoji('6032593965973245196'), # 🤔 var 2
+    types.ReactionTypeCustomEmoji('5413495402580156614'), # 🤔 var 3
+    
+]
 # ─────────────────────────────────────────
 #   🔑  CONFIGURATION — Updated for Groq & Railway
 # ─────────────────────────────────────────
@@ -89,14 +104,19 @@ def get_bot_username():
 
 def process_ai_query(message, question):
     """The central brain that handles the actual AI request and formatting."""
-    # 1. Cool Reactions (⚡/😎)
+    
+    # 1. 🎲 Randomized Premium Reactions
     try:
-        bot.set_message_reaction(message.chat.id, message.message_id, [
-            types.ReactionTypeEmoji('⚡'), 
-            types.ReactionTypeEmoji('😎')
-        ])
-    except Exception:
-        pass 
+        # Randomly choose whether to send 1 or 2 reactions
+        num_reactions = random.randint(1, 2)
+        
+        # Pick random emojis from your pool without repeating
+        chosen_reactions = random.sample(REACTION_POOL, num_reactions)
+        
+        bot.set_message_reaction(message.chat.id, message.message_id, chosen_reactions)
+    except Exception as e:
+        # Fails silently if a specific group chat has premium emojis disabled
+        logger.debug(f"Reaction failed: {e}") 
 
     # 2. Show Typing Indicator
     bot.send_chat_action(message.chat.id, "typing")
@@ -108,7 +128,7 @@ def process_ai_query(message, question):
         if not reply or len(reply) < 5:
             raise Exception("Incomplete AI response")
 
-        # 🎨 Advanced 'GPT-Style' Formatting (WITHOUT BLOCKQUOTES)
+        # 🎨 Advanced 'GPT-Style' Formatting (No Blockquotes)
         full_reply = (
             f"✨ *X Chat Bot Response*\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -118,6 +138,19 @@ def process_ai_query(message, question):
         )
         
         bot.reply_to(message, full_reply, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Logic Error: {e}")
+        
+        # 🙄 Sassy Error Message
+        attitude_text = (
+            "🙄 *Ugh, even I have my limits.*\n\n"
+            "I can't figure this one out right now. Stop spamming and "
+            "go ask my creator **Ayush** (@CipherWrites) directly.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "💻 *Dev* — `Ayush (@CipherWrites)`"
+        )
+        bot.reply_to(message, attitude_text, parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Logic Error: {e}")
