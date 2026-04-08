@@ -3,6 +3,7 @@ from openai import OpenAI
 import logging
 from telebot import types
 import os
+import re
 import time
 from datetime import datetime
 import random
@@ -77,11 +78,17 @@ def ask_grok(user_id: int, user_message: str) -> str:
         raise
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
-@bot.message_handler(func=lambda m: m.text is not None)
-def handle_message(message: telebot.types.Message):
-    user_id   = message.from_user.id
-    user_text = message.text.strip()
+# ── Smart Engine Setup ────────────────────────────────────────────────────────
+BOT_USERNAME = ""
 
+def get_bot_username():
+    global BOT_USERNAME
+    if not BOT_USERNAME:
+        BOT_USERNAME = bot.get_me().username.lower()
+    return BOT_USERNAME
+
+def process_ai_query(message, question):
+    """The central brain that handles the actual AI request and formatting."""
     # 1. Cool Reactions (⚡/😎)
     try:
         bot.set_message_reaction(message.chat.id, message.message_id, [
@@ -96,7 +103,7 @@ def handle_message(message: telebot.types.Message):
 
     try:
         # 🧠 Get the AI response
-        reply = ask_grok(user_id, user_text)
+        reply = ask_grok(message.from_user.id, question)
         
         if not reply or len(reply) < 5:
             raise Exception("Incomplete AI response")
@@ -105,7 +112,7 @@ def handle_message(message: telebot.types.Message):
         full_reply = (
             f"✨ *X Chat Bot Response*\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"{reply}\n\n" # Removed the '>' symbols here
+            f"{reply}\n\n" 
             f"━━━━━━━━━━━━━━━━━━━━━\n"
             f"💻 *Dev* — `Ayush (@CipherWrites)`"
         )
@@ -125,8 +132,42 @@ def handle_message(message: telebot.types.Message):
         )
         bot.reply_to(message, attitude_text, parse_mode="Markdown")
 
+
+# ── TRIGGER 1: The /ask Command ──────────────────────────────────────────────
+@bot.message_handler(commands=["ask"])
+def cmd_ask(message):
+    question = message.text[4:].strip() # Grabs text after "/ask"
+    
+    if not question:
+        bot.reply_to(message, "⚠️ *Please ask a question!*\n> Example: `/ask What is quantum physics?`", parse_mode="Markdown")
+        return
         
-@bot.message_handler(commands=["start"])
+    process_ai_query(message, question)
+
+
+# ── TRIGGERS 2 & 3: "X Bot" Text & @Mentions ─────────────────────────────────
+@bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
+def handle_smart_triggers(message):
+    text_lower = message.text.lower()
+    my_username = get_bot_username()
+    
+    # Check if they typed the trigger words or tagged the bot
+    is_name_trigger = text_lower.startswith("x bot") or text_lower.startswith("x chat bot")
+    is_mention = f"@{my_username}" in text_lower
+    
+    if is_name_trigger or is_mention:
+        # Clean the text so the AI just sees the question
+        question = message.text
+        question = re.sub(r'^(x chat bot|x bot)', '', question, flags=re.IGNORECASE).strip()
+        question = re.sub(rf'@{my_username}', '', question, flags=re.IGNORECASE).strip()
+        
+        if not question:
+            question = "Hello!" # Fallback if they just tag it
+            
+        process_ai_query(message, question)
+
+        
+@bot.message_handler(commands=["Xstart"])
 def cmd_start(message: telebot.types.Message):
     name = message.from_user.first_name or "there"
     text = (
@@ -196,7 +237,7 @@ def cmd_stats(message: telebot.types.Message):
 
     bot.reply_to(message, stats_msg, parse_mode="Markdown")
 
-@bot.message_handler(commands=["help"])
+@bot.message_handler(commands=["Xhelp"])
 def cmd_help(message: telebot.types.Message):
     text = (
         "💡 *How to use X Chat Bot*\n"
@@ -211,7 +252,7 @@ def cmd_help(message: telebot.types.Message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=["clear"])
+@bot.message_handler(commands=["Xclear"])
 def cmd_clear(message: telebot.types.Message):
     conversation_history.pop(message.from_user.id, None)
     text = (
@@ -221,7 +262,7 @@ def cmd_clear(message: telebot.types.Message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=["about"])
+@bot.message_handler(commands=["aboutX"])
 def cmd_about(message: telebot.types.Message):
     text = (
         "🤖 *X Chat Bot*\n"
@@ -281,8 +322,23 @@ def query_text(inline_query):
 if __name__ == "__main__":
     logger.info("🚀 X Chat Bot is starting...")
     
-    # 🛡️ ADD THIS LINE: It clears old connections and stops the 409 error
-    bot.remove_webhook() 
-    
+    try:
+        # 📋 THIS CREATES THE TELEGRAM COMMAND MENU!
+        bot.set_my_commands([
+            telebot.types.BotCommand("/Xstart", "Initialize the bot"),
+            telebot.types.BotCommand("/Xhelp", "See how to use me"),
+            telebot.types.BotCommand("/ask", "Ask me a question (e.g. /ask hello)"),
+            telebot.types.BotCommand("/Xclear", "Wipe my memory"),
+            telebot.types.BotCommand("/xstats", "View advanced bot diagnostics"),
+            telebot.types.BotCommand("/aboutX", "See creator info")
+        ])
+        
+        # 🛡️ Drop old connections
+        bot.remove_webhook()
+        logger.info("✅ Menu Updated & Connections cleared.")
+    except Exception as e:
+        logger.error(f"Startup error: {e}")
+
     print("\n✅ X Chat Bot is LIVE! Check Telegram.\n")
     bot.infinity_polling(timeout=60, long_polling_timeout=30)
+
