@@ -21,7 +21,7 @@ from telebot import types
 # ─────────────────────────────────────────────────────────────
 #  🔑  CONFIGURATION
 # ─────────────────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAEz5aKUJ414jv2uMZJfg-ruzgH7hxuhJD0")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAEDfDlxO8vGyaQsytHEA79JA6gUx85pDF8")
 GROK_API_KEY       = os.getenv("GROK_API_KEY",       "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")
 GROK_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct"
 MAX_HISTORY        = 20
