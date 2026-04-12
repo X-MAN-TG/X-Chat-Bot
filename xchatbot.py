@@ -22,7 +22,7 @@ from telebot import types
 #  🔑  CONFIGURATION
 # ─────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAEDfDlxO8vGyaQsytHEA79JA6gUx85pDF8")
-GROK_API_KEY       = os.getenv("GROK_API_KEY",       "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")
+GROK_API_KEY       = os.getenv("GROK_API_KEY",       "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")
 GROK_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct"
 MAX_HISTORY        = 20
 MAX_PAGE_LEN       = 3800   # Telegram hard limit is 4096; leave headroom for formatting
