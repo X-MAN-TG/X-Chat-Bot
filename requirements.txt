@@ -1,2 +1,2 @@
-aiogram==3.5.0
-openai==1.35.13
+aiogram==3.4.1
+openai==1.6.1
