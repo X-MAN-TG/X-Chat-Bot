@@ -1,0 +1,15 @@
+[project]
+name = "x-chat-bot"
+version = "3.0.0"
+description = "Telegram AI Bot using aiogram 3.x and Groq"
+requires-python = ">=3.11"
+
+dependencies = [
+    "aiogram==3.7.0",
+    "openai>=1.30.0",
+    "python-dotenv>=1.0.1",
+    "uvloop>=0.19.0"
+]
+
+[tool.python]
+runtime = "python3.11"
