@@ -39,8 +39,8 @@ from openai import AsyncOpenAI
 # ──────────────────────────────────────────────────────────
 #  CONFIGURATION
 # ──────────────────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAGnye50ozxls08deV18Zyn6JrOl-mEoHx8")
-GROQ_API_KEY       = os.getenv("GROQ_API_KEY",       "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")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAEeJAN0UbrXJWDle7ONMKo9_8iXYdWuL50")
+GROQ_API_KEY       = os.getenv("GROQ_API_KEY",       "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")
 GROQ_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct"
 OWNER_ID           = 6810553459
 
@@ -49,7 +49,7 @@ EMOJI_NEXT_ID = "5469715085670772857"   # ⏩
 EMOJI_PREV_ID = "5469982030773120950"   # ⏪
 
 # Rate limiting: max requests per window
-RATE_LIMIT_REQUESTS = 8
+RATE_LIMIT_REQUESTS = 20
 RATE_LIMIT_WINDOW   = 60   # seconds
 
 MAX_HISTORY         = 30   # messages kept per user
