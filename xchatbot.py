@@ -1181,6 +1181,113 @@ async def cmd_poll(message: Message):
         await message.reply("⚠️ Couldn't generate poll. Try again.")
 
 # ──────────────────────────────────────────────────────────
+#  INLINE MODE
+# ──────────────────────────────────────────────────────────
+from aiogram.types import (
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+)
+import uuid
+
+@router.inline_query()
+async def inline_query_handler(inline_query: InlineQuery):
+    query = inline_query.query.strip()
+
+    # Show a placeholder if user hasn't typed anything yet
+    if not query:
+        await inline_query.answer(
+            results=[
+                InlineQueryResultArticle(
+                    id="placeholder",
+                    title="🤖 Ask X Chat Bot",
+                    description="Start typing your question...",
+                    input_message_content=InputTextMessageContent(
+                        message_text="🤖 *X Chat Bot* — Type your question after `@YourBotUsername`",
+                        parse_mode=ParseMode.MARKDOWN,
+                    ),
+                )
+            ],
+            cache_time=0,
+            is_personal=True,
+        )
+        return
+
+    user_id = inline_query.from_user.id
+
+    # Rate limit check
+    if is_rate_limited(user_id):
+        await inline_query.answer(
+            results=[
+                InlineQueryResultArticle(
+                    id="rate_limit",
+                    title="⏳ Rate Limited",
+                    description="Too many requests. Please wait a moment.",
+                    input_message_content=InputTextMessageContent(
+                        message_text="⏳ You're being rate limited. Please wait and try again.",
+                    ),
+                )
+            ],
+            cache_time=0,
+            is_personal=True,
+        )
+        return
+
+    # Show a "thinking" result while user waits
+    thinking_result = InlineQueryResultArticle(
+        id="thinking",
+        title=f"🧠 Ask: {query[:50]}{'...' if len(query) > 50 else ''}",
+        description="Tap to send — X Bot will answer!",
+        input_message_content=InputTextMessageContent(
+            message_text=f"❓ *Question:* {query}\n\n⏳ _Generating answer..._",
+            parse_mode=ParseMode.MARKDOWN,
+        ),
+    )
+
+    # Fetch AI answer
+    try:
+        register_user(inline_query.from_user)
+        answer = await ask_groq(user_id, query, CONCISE_ADDON)
+        safe_answer = answer[:TG_MAX_CHARS]
+
+        result = InlineQueryResultArticle(
+            id=str(uuid.uuid4()),
+            title=f"💡 {query[:60]}{'...' if len(query) > 60 else ''}",
+            description=safe_answer[:100] + ("..." if len(safe_answer) > 100 else ""),
+            input_message_content=InputTextMessageContent(
+                message_text=(
+                    f"❓ *{query}*\n\n"
+                    f"{safe_answer}\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"_Answered by_ *X Chat Bot* 🤖"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            ),
+        )
+        await inline_query.answer(
+            results=[result],
+            cache_time=10,
+            is_personal=True,
+        )
+
+    except Exception as e:
+        logger.error(f"Inline query error: {e}")
+        await inline_query.answer(
+            results=[
+                InlineQueryResultArticle(
+                    id="error",
+                    title="⚠️ Something went wrong",
+                    description="Couldn't get an answer. Try again.",
+                    input_message_content=InputTextMessageContent(
+                        message_text="⚠️ X Chat Bot encountered an error. Please try again.",
+                    ),
+                )
+            ],
+            cache_time=0,
+            is_personal=True,
+        )
+        
+# ──────────────────────────────────────────────────────────
 #  BOT STARTUP
 # ──────────────────────────────────────────────────────────
 async def set_commands():
@@ -1220,7 +1327,7 @@ async def main():
     await set_commands()
 
     logger.info("✅ X Chat Bot is LIVE!")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-
+    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "inline_query"])
+    
 if __name__ == "__main__":
     asyncio.run(main())
