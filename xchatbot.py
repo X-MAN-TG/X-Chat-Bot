@@ -40,7 +40,7 @@ from openai import AsyncOpenAI
 #  CONFIGURATION
 # ──────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8692680733:AAEeJAN0UbrXJWDle7ONMKo9_8iXYdWuL50")
-GROQ_API_KEY       = os.getenv("GROQ_API_KEY",       "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")
+GROQ_API_KEY       = os.getenv("GROQ_API_KEY",       "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")
 GROQ_MODEL         = "meta-llama/llama-4-scout-17b-16e-instruct"
 OWNER_ID           = 6810553459
 
